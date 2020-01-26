@@ -25,6 +25,11 @@ moritz@github:~/test$ pip install overleaf-sync
 
 That's it!
 
+### build
+```bash
+flit build
+```
+
 ### Prerequisites
 - Create your project on overleaf.com, for example `test`. The tool is not able to create projects (yet).
 - Create a folder with the same name as the project (`test`) on your computer
