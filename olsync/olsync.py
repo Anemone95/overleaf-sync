@@ -8,6 +8,7 @@
 # License: MIT
 # Version: 1.0.3
 ##################################################
+import traceback
 
 import click
 import os
@@ -19,6 +20,9 @@ import io
 import dateutil.parser
 import glob
 import fnmatch
+import logging
+
+DEBUG=True
 
 
 @click.group(invoke_without_command=True)
@@ -40,6 +44,10 @@ def main(ctx, local, remote, cookie_path, sync_path, olignore_path):
 
         with open(cookie_path, 'rb') as f:
             store = pickle.load(f)
+
+        store["cookie"].clear_expired_cookies()
+        if not store['cookie'].get("overleaf_sessio2"):
+            raise click.ClickException("Persisted Overleaf cookie expired. Please login again.")
 
         overleaf_client = OverleafClient(store["cookie"], store["csrf"])
 
@@ -185,7 +193,9 @@ def execute_action(action, progress_message, success_message, fail_message):
     with yaspin(text=progress_message, color="green") as spinner:
         try:
             success = action()
-        except:
+        except Exception as e:
+            if DEBUG:
+                traceback.print_exc()
             success = False
 
         if success:
