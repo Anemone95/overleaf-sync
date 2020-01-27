@@ -45,12 +45,12 @@ def main(ctx, local, remote, cookie_path, sync_path, olignore_path):
         with open(cookie_path, 'rb') as f:
             store = pickle.load(f)
 
-        store["cookie"].clear_expired_cookies()
-        if not store['cookie'].get("overleaf_session2"):
+        store["session"].cookies.clear_expired_cookies()
+        if not store["session"].cookies.get("overleaf_session2"):
             os.remove(cookie_path)
             raise click.ClickException("Persisted Overleaf cookie expired. Please login again(using \"ols login\").")
 
-        overleaf_client = OverleafClient(store["cookie"], store["csrf"])
+        overleaf_client = OverleafClient(store["session"], store["csrf"])
 
         project = execute_action(
             lambda: overleaf_client.get_project(
