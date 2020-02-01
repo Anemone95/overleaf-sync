@@ -146,6 +146,7 @@ def sync_func(files_from, create_file_at_to, from_exists_in_to, from_equal_to_to
     synced_list = []
 
     for name in files_from:
+        name=name.replace(os.path.sep,'/')
         if from_exists_in_to(name):
             if not from_equal_to_to(name):
                 if not from_newer_than_to(name) and not click.confirm(

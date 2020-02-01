@@ -9,7 +9,9 @@
 # Version: 1.0.3
 ##################################################
 import hashlib
+import os
 import random
+from pathlib import Path
 
 import requests as reqs
 from bs4 import BeautifulSoup
@@ -38,7 +40,7 @@ class OverleafClient(object):
         self._csrf = csrf  # Store the CSRF token since it is needed for some requests
         self._session = session if session else reqs.session()
         self.ws = None
-        self.project_cache = {}
+        self.__project_folder = None
 
     def login(self, username, password):
         """
@@ -108,11 +110,13 @@ class OverleafClient(object):
 
         Returns: True on success, False on fail
         """
-        project_dirs=self.get_project_dir(format(int(project_id, 16) - 1, 'x'))
+        project_dirs = self.get_project_folder(format(int(project_id, 16) - 1, 'x'))
         # To get the folder_id, we convert the hex project_id to int, subtract 1 and convert it back to hex
+        file_folder=str(Path("/"+file_name).parent).replace(os.path.sep, '/')
+        folder_id=project_dirs[file_folder]
         params = {
             # FIXME
-            "folder_id": format(int(project_id, 16) - 1, 'x'),
+            "folder_id": folder_id,
             "_csrf": self._csrf,
             "qquuid": str(uuid.uuid4()),
             "qqfilename": file_name,
@@ -124,14 +128,33 @@ class OverleafClient(object):
         r = self._session.post(UPLOAD_URL.format(project_id), params=params, files=files)
         return r.status_code == str(200) and json.loads(r.content)["success"]
 
-    def get_project_dir(self, project_id: str):
-        if project_id in self.project_cache:
-            return self.project_cache[project_id]
+    def get_project_folder(self, project_id: str):
+        if self.__project_folder:
+            return self.__project_folder
 
-        self.get_socket().send('5:4+::{"name":"joinProject","args":[{"project_id":"' + project_id + '"}]}')
-        recv = self.get_socket().recv()
-        self.project_cache[project_id] = json.loads(recv[12:])
-        return self.project_cache[project_id]
+        # TODO use websocket, now I mocked it
+        # self.get_socket().send('5:4+::{"name":"joinProject","args":[{"project_id":"' + project_id + '"}]}')
+        # recv = self.get_socket().recv()
+        # self.project_cache[project_id] = json.loads(recv[12:])
+        with open("./folder_metadata.json", 'r', encoding='utf8') as f:
+            meta = json.load(f)
+        root_folder = meta[1]["rootFolder"][0]
+        self.__project_folder = {}
+        self.dfs_folders(root_folder, "")
+
+        return self.__project_folder
+
+    def dfs_folders(self, root_folder, folder_path):
+        if root_folder["name"] == "rootFolder":
+            folder_name = "/"
+        elif folder_path=="/":
+            folder_name = folder_path + root_folder["name"]
+        else:
+            folder_name = folder_path + "/" + root_folder["name"]
+        self.__project_folder[folder_name] = root_folder["_id"]
+        for folder in root_folder["folders"]:
+            sub_folder = folder_name + folder["name"]
+            self.dfs_folders(folder, folder_name)
 
     def get_socket(self) -> websocket._core.WebSocket:
         if self.ws:
@@ -146,6 +169,6 @@ class OverleafClient(object):
                    "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
                    "Sec-WebSocket-Key": hashlib.md5(random.getrandbits(2).to_bytes(2, "big")).hexdigest()}
         ws = websocket._core.create_connection("wss://www.overleaf.com/socket.io/1/websocket/" + token)
-        resp=self._session.get(SOCKET_UPDATE_URL + token, headers=headers)
+        resp = self._session.get(SOCKET_UPDATE_URL + token, headers=headers)
         self.ws = ws
         return ws
